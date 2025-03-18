@@ -567,10 +567,87 @@ bool is_in2(std::vector<std::pair<Vertex, Vertex>> list, std::pair<Vertex, Verte
     return false;
 }
 
+bool is_in(std::set<Vertex> triangle, std::vector<std::set<Vertex>> seen_triangles){
+
+    for(auto tri : seen_triangles){
+        if(tri==triangle){
+            return true;
+        }
+    }
+
+    return false;
+}
 
 
 
-struct ModularProductGraph induced_subgraph(const std::set<Vertex> &clique, struct ModularProductGraph& graph){
+std::vector<std::set<Vertex>> cartesian(std::vector<std::vector<Vertex>>& sets) {
+    std::vector<std::set<Vertex>> temp(1, std::set<Vertex>());
+    for (int i = 0; i < sets.size(); i++) {
+        std::vector<std::set<Vertex>> newTemp;
+        for (const std::set<Vertex>& product : temp) {
+            for (const Vertex& element : sets[i]) {
+                std::set<Vertex> tempCopy = product;
+                tempCopy.insert(element);
+                newTemp.push_back(tempCopy);
+            }
+        }
+        temp = newTemp;
+    }
+
+    return temp;
+
+}
+
+
+
+ModularProductGraph delete_set_of_vertices(ModularProductGraph &graph, std::set<Vertex> &delete_vertices){
+
+
+    std::set<Vertex> good_vertices;
+
+    for (const auto& vertex : boost::make_iterator_range(boost::vertices(graph.g))){
+        if(is_in(delete_vertices, vertex)){
+            continue;
+        }
+        good_vertices.insert(vertex);
+    }
+
+    struct ModularProductGraph subgraph;
+
+    auto vertex_map = std::map<Vertex, Vertex>();
+
+    subgraph.g1 = graph.g1;
+    subgraph.g2 = graph.g2;
+
+    for(const auto& vertex: good_vertices){
+
+        auto v = add_vertex(subgraph.g);
+        vertex_map[vertex] = v;
+        subgraph.atoms[v] = graph.atoms[vertex];
+        subgraph.node_map[v] = graph.node_map[vertex];
+        subgraph.clique_map[v] = graph.g1->clique_map[graph.node_map[vertex].first]; 
+
+    }
+
+    for (const auto& edge : boost::make_iterator_range(boost::edges(graph.g))){
+        if(good_vertices.find(edge.m_source)!=good_vertices.end() && good_vertices.find(edge.m_target)!=good_vertices.end() && graph.bonds[std::pair<Vertex, Vertex>(edge.m_target, edge.m_source)] != "NONE"){//(is_in(clique, edge.m_source) && is_in(clique, edge.m_target) && graph.bonds[std::pair<Vertex, Vertex>(edge.m_target, edge.m_source)] != "NONE"){
+            auto e = add_edge(vertex_map[edge.m_source], vertex_map[edge.m_target], subgraph.g);
+            subgraph.bonds[std::pair<Vertex, Vertex>(vertex_map[edge.m_target],vertex_map[edge.m_source])] = graph.bonds[std::pair<Vertex, Vertex>(edge.m_target, edge.m_source)];
+            subgraph.bonds[std::pair<Vertex, Vertex>(vertex_map[edge.m_source],vertex_map[edge.m_target])] = graph.bonds[std::pair<Vertex, Vertex>(edge.m_target, edge.m_source)];
+        }
+
+    }
+
+    return subgraph;
+
+
+
+
+
+
+}
+
+std::vector<ModularProductGraph> induced_subgraph(const std::set<Vertex> &clique, struct ModularProductGraph& graph){
 
     struct ModularProductGraph subgraph;
 
@@ -598,7 +675,105 @@ struct ModularProductGraph induced_subgraph(const std::set<Vertex> &clique, stru
 
     }
 
-    return subgraph;
+    std::vector<std::vector<Vertex>> bad_triangles;
+
+    std::vector<std::set<Vertex>> seen_triangles;
+
+    for (const auto& e : boost::make_iterator_range(boost::edges(subgraph.g))){
+        if(subgraph.bonds[std::pair<Vertex, Vertex>(vertex_map[e.m_target],vertex_map[e.m_source])]=="NONE"){
+            continue;
+        }
+        for (const auto& vertex : boost::make_iterator_range(boost::vertices(subgraph.g))){
+            if(edge(vertex, e.m_target, subgraph.g).second and edge(vertex, e.m_source, subgraph.g).second and subgraph.bonds[std::pair<Vertex, Vertex>(vertex,e.m_source)]!="NONE" and subgraph.bonds[std::pair<Vertex, Vertex>(vertex,e.m_target)]!="NONE"){
+                std::set<Vertex> triangle1;
+                std::set<Vertex> triangle2;
+
+                triangle1.insert(subgraph.g1->edge_map[subgraph.node_map[vertex].first].first);
+                triangle1.insert(subgraph.g1->edge_map[subgraph.node_map[vertex].first].second);
+
+                triangle1.insert(subgraph.g1->edge_map[subgraph.node_map[e.m_source].first].first);
+                triangle1.insert(subgraph.g1->edge_map[subgraph.node_map[e.m_source].first].second);
+
+                triangle1.insert(subgraph.g1->edge_map[subgraph.node_map[e.m_target].first].first);
+                triangle1.insert(subgraph.g1->edge_map[subgraph.node_map[e.m_target].first].second);
+
+
+                triangle2.insert(subgraph.g2->edge_map[subgraph.node_map[vertex].second].first);
+                triangle2.insert(subgraph.g2->edge_map[subgraph.node_map[vertex].second].second);
+
+                triangle2.insert(subgraph.g2->edge_map[subgraph.node_map[e.m_source].second].first);
+                triangle2.insert(subgraph.g2->edge_map[subgraph.node_map[e.m_source].second].second);
+
+                triangle2.insert(subgraph.g2->edge_map[subgraph.node_map[e.m_target].second].first);
+                triangle2.insert(subgraph.g2->edge_map[subgraph.node_map[e.m_target].second].second); 
+
+                if(triangle1.size()!=triangle2.size()){
+                    std::vector<Vertex> bad_triangle = {vertex, e.m_target, e.m_source};
+                    std::set<Vertex> triangle = {vertex, e.m_target, e.m_source};
+                    if(is_in(triangle, seen_triangles)){
+                        continue;
+                    }
+                    bad_triangles.push_back(bad_triangle);
+                    seen_triangles.push_back(triangle);
+                }
+            }
+        }
+
+    }
+
+    if(bad_triangles.size()==0){
+        return {subgraph};
+    }
+
+    std::vector<ModularProductGraph> results;
+
+
+    
+    auto remove_vertex_sets = cartesian(bad_triangles);
+
+    std::vector<std::set<Vertex>> final_remove_vertex_sets;
+
+    std::vector<bool> keep_set;
+
+    for(int i=0; i<remove_vertex_sets.size(); i++){
+        keep_set.push_back(true);
+    }
+
+    for(int i = 0; i<remove_vertex_sets.size(); i++){
+        for(int j=0; j<remove_vertex_sets.size(); j++){
+            if(i==j){
+                continue;
+            }
+            if(std::includes(remove_vertex_sets[i].begin(), remove_vertex_sets[i].end(), remove_vertex_sets[j].begin(), remove_vertex_sets[j].end() )){
+                keep_set[j]=false;
+            }
+
+
+        }
+
+    }
+
+    for(int i=0; i<remove_vertex_sets.size(); i++){
+        if(keep_set[i]){
+            final_remove_vertex_sets.push_back(remove_vertex_sets[i]);
+        }
+    }
+
+    for(auto remove_set : final_remove_vertex_sets){
+
+        auto curr_subgraph = delete_set_of_vertices(subgraph, remove_set);
+
+        results.push_back(curr_subgraph);
+
+
+    }
+
+
+
+
+
+    return results;
+    
 
 
 
@@ -859,19 +1034,15 @@ MCSGenerator maximal_common_subgraphs(struct LineGraph &g1, struct LineGraph &g2
         auto cliques =  bron_kerbosch_driver(subgraph);
         while (cliques.move_next()){
 
-
             auto clique = cliques.current_value();
 
             num_cliques_found++;
             
 
-            if(num_vertices(g1.g)<maximum){
+            if(clique.size()<maximum){
                 co_return;
             }
 
-            if(num_vertices(subgraph.g)<maximum){
-                break;
-            }
             
 
             std::vector<Vertex> clique_set;
@@ -924,12 +1095,12 @@ MCSGenerator maximal_common_subgraphs(struct LineGraph &g1, struct LineGraph &g2
 
             auto ind_subgraph = induced_subgraph(clique, subgraph);
 
-            std::vector<ModularProductGraph> smaller_subgraphs;
-            smaller_subgraphs = {ind_subgraph};
+            //std::vector<ModularProductGraph> smaller_subgraphs;
+            //smaller_subgraphs = {ind_subgraph};
 
             
             
-            for(auto& small_subgraph: smaller_subgraphs){
+            for(auto& small_subgraph: ind_subgraph){
 
                 
 
@@ -986,6 +1157,7 @@ std::vector<std::pair<Vertex, Vertex>> cartesian_product( Graph& g1, Graph& g2){
 
 
 
+
 struct StackHelper{
     Vertex u_prime;
     Vertex v_prime;
@@ -995,11 +1167,7 @@ struct StackHelper{
 };
 
 
-
-
-
-
-std::vector<std::pair<Vertex, Vertex>> reachable_pairs(Vertex u1, LineGraph &g1, Vertex v1, LineGraph &g2, std::vector<Vertex> good_vertices1, std::vector<Vertex> good_vertices2){
+std::vector<std::pair<Vertex, Vertex>> reachable_pairs(Vertex u1, LineGraph &g1, Vertex v1, LineGraph &g2, std::vector<Vertex> good_vertices1, std::vector<Vertex> good_vertices2, int max_num_edges){
 
 
     std::vector<std::pair<Vertex, Vertex>> all_pairs;
@@ -1034,9 +1202,10 @@ std::vector<std::pair<Vertex, Vertex>> reachable_pairs(Vertex u1, LineGraph &g1,
 
     while(stack.size()>0){
         iter++;
-        if (iter>100000000000){
-            return all_pairs;
-        }
+        
+
+
+
     
         quad = stack.back();
         
@@ -1045,12 +1214,37 @@ std::vector<std::pair<Vertex, Vertex>> reachable_pairs(Vertex u1, LineGraph &g1,
 
         stack.pop_back();
         
+        bool abort = false;
+
+        for(auto stack_item : stack){
+            if(stack_item.u_prime==u_prime and stack_item.v_prime==v_prime){
+                if(std::includes(quad.seen_u_vertices.begin(), quad.seen_u_vertices.end(), stack_item.seen_u_vertices.begin(), stack_item.seen_u_vertices.end()) and std::includes(quad.seen_v_vertices.begin(), quad.seen_v_vertices.end(), stack_item.seen_v_vertices.begin(), stack_item.seen_v_vertices.end()) ){
+                    abort = true;
+                    break;
+                }
+            }
+        }
+
+        if(abort){
+            continue;
+        }
+        
         for (auto ud : make_iterator_range(adjacent_vertices(u_prime, g1.g))){
            
             if(quad.seen_u_vertices.find(ud)!=quad.seen_u_vertices.end()){
                 continue;
             }
+            if(!std::binary_search(good_vertices1.begin(), good_vertices1.end(), ud)){
+                    continue;
+                }
             for (auto vd : make_iterator_range(adjacent_vertices(v_prime, g2.g))){
+
+                auto edge1 = g1.edge_map[ud];
+                auto edge2 = g2.edge_map[vd];
+
+                if(!( (g1.org_graph->atoms[edge1.first]==g2.org_graph->atoms[edge2.first] && g1.org_graph->atoms[edge1.second]==g2.org_graph->atoms[edge2.second]) ||  (g1.org_graph->atoms[edge1.first]==g2.org_graph->atoms[edge2.second] && g1.org_graph->atoms[edge1.second]==g2.org_graph->atoms[edge2.first]))){
+                    continue;
+                }
 
             
                 if(g1.atoms[ud]!=g2.atoms[vd]){
@@ -1059,9 +1253,7 @@ std::vector<std::pair<Vertex, Vertex>> reachable_pairs(Vertex u1, LineGraph &g1,
                 if(g1.bonds[std::pair<Vertex, Vertex>(u_prime, ud)]!=g2.bonds[std::pair<Vertex, Vertex>(v_prime, vd)]){
                     continue;
                 }
-                if(!std::binary_search(good_vertices1.begin(), good_vertices1.end(), ud)){
-                    continue;
-                }
+        
                 if(!std::binary_search(good_vertices2.begin(), good_vertices2.end(), vd)){
                     continue;
                 }
@@ -1070,7 +1262,10 @@ std::vector<std::pair<Vertex, Vertex>> reachable_pairs(Vertex u1, LineGraph &g1,
                 }
                 else{
 
-                    reachable.push_back(std::pair(ud,vd));
+                    if(!is_in(reachable, std::pair(ud,vd))){
+                        reachable.push_back(std::pair(ud,vd));
+                    }
+                    
                     StackHelper new_quad;
                     new_quad.u_prime = ud;
                     new_quad.v_prime = vd;
@@ -1382,10 +1577,17 @@ std::vector<struct ModularProductGraph> alternate_find_blue_connected_components
             new_mod_product.atoms[v] = graph.atoms[vertex];
             new_mod_product.clique_map[v] = graph.clique_map[vertex];
             pair_vertex_map[graph.node_map[vertex]] = v;
-            good_vertices1.push_back(graph.node_map[vertex].first);
-            good_vertices2.push_back(graph.node_map[vertex].second);
+            if(!is_in(good_vertices1, new_mod_product.node_map[v].first)){
+                good_vertices1.push_back(new_mod_product.node_map[v].first);
+            }
+            if(!is_in(good_vertices2, new_mod_product.node_map[v].second)){
+                good_vertices2.push_back(new_mod_product.node_map[v].second);
+            }
+            
             
         }
+
+        
 
         std::sort(good_vertices1.begin(), good_vertices1.end());
         std::sort(good_vertices2.begin(), good_vertices2.end());
@@ -1407,8 +1609,24 @@ std::vector<struct ModularProductGraph> alternate_find_blue_connected_components
         
         int it = 0;
         for (const auto& node1 : boost::make_iterator_range(boost::vertices(new_mod_product.g))){
+           // cout << it << "/" << num_vertices(new_mod_product.g) << endl;
             auto tup1 = new_mod_product.node_map[node1];
-            auto feasible_pairs = reachable_pairs(tup1.first, *g1, tup1.second, *g2, good_vertices1, good_vertices2);
+
+            int max_num_edges = 0;
+
+            for (const auto& v : boost::make_iterator_range(boost::vertices(new_mod_product.g))){
+                if(v<=node1){
+                    continue;
+                }
+                auto tup2 = new_mod_product.node_map[v];
+
+                if(!edge(tup1.first, tup2.first, graph.g1->g).second && !edge(tup1.second, tup2.second, graph.g2->g).second){
+                    max_num_edges++;   
+                }
+
+            }
+
+            auto feasible_pairs = reachable_pairs(tup1.first, *g1, tup1.second, *g2, good_vertices1, good_vertices2, max_num_edges);
 
             std::sort(feasible_pairs.begin(), feasible_pairs.end());
              auto new_end = std::unique(feasible_pairs.begin(), feasible_pairs.end());
@@ -1591,7 +1809,8 @@ CliqueGenerator bron_kerbosch_non_recursive(std::set<Vertex> init_R, std::set<Ve
     while(stack.size()>0){
         it++;
  
-        if(curr_cliques.size()>0){
+        if(curr_cliques.size()>100){
+            
             
             int s = curr_cliques.size();
             for(int i=0; i<s; i++){
@@ -1640,6 +1859,7 @@ CliqueGenerator bron_kerbosch_non_recursive(std::set<Vertex> init_R, std::set<Ve
             }
             
         }
+
         
     
         
@@ -1961,7 +2181,6 @@ void maximum_common_subgraph(std::vector<struct LineGraph> &graphs, bool first){
                 all_maximum_graphs.push_back(graph);
             }
             else if(num_edges(graph.g)>maximum){
-                cout << maximum << endl;
                 maximum = num_edges(graph.g);
                 all_maximum_graphs = std::vector<MolecularGraph>();
                 maximum_graph = graph;
@@ -2064,7 +2283,7 @@ std::map<std::pair<int,int>, int> strong_product_kernel(std::vector<LineGraph> &
         }
     }
 
-    cout << min << endl;
+    
     return kernel;
 
 
@@ -2273,7 +2492,7 @@ void find_all_cliques_per_file(){
 
 void find_all_cliques(){
 
-    std::ifstream infile("smiles_list");
+    std::ifstream infile("smiles_mcs.txt");
     std::vector<std::string> smiles;
     std::string line;
     while (std::getline(infile, line))
@@ -2283,24 +2502,21 @@ void find_all_cliques(){
         
     } 
 
-    ofstream MyFile("zinc12k_common_subgraph_data3.txt");
+    ofstream MyFile("zinc250k_common_subgraph_data.txt");
     int iter = 0;
-    for(int k=0; k<11000; k++){
-        for(int j=0; j<11000; j++){
+    for(int k=0; k<500; k++){
+        for(int j=0; j<500; j++){
             auto sm1 = smiles[k];
             auto sm2 = smiles[j];
             if(k<j){
                 continue;
             }  
-            if(iter<502){
-                //iter++;
-                //continue;
-            } 
+            
             iter++;
 
             std::map<int, int> clique_count;
 
-            for(int i=1; i<11; i++){
+            for(int i=1; i<100; i++){
                 clique_count[i] = 0;
             }
 
@@ -2313,7 +2529,7 @@ void find_all_cliques(){
 
             auto direct_product = modular_graph_product(lg1, lg2);
 
-            special_product = false;
+            special_product = true;
 
             auto blue_connected_components = alternate_find_blue_connected_components(direct_product);
 
@@ -2355,7 +2571,7 @@ void find_all_cliques(){
             MyFile << k << "," <<sm1 << endl;
             MyFile << j << "," <<sm2 << endl;
 
-            for(int i=1; i<11; i++){
+            for(int i=1; i<100; i++){
                 MyFile << i << ":" << clique_count[i] << endl;
             }
             MyFile << "#" << endl;
@@ -2700,7 +2916,13 @@ void test_time_ordering(){
 
      ofstream MyFile("mcs_results1.txt");
 
+     ofstream results("times_minmax_pruned.txt");
+
+     //results << "solution_time,ordering_time" << endl;  
+
      cout << "LOL";
+
+     double ordering_time = 0;
      
 
     std::ifstream infile("instances_wl3.txt"/*"random_smiles"*/);
@@ -2720,23 +2942,19 @@ void test_time_ordering(){
             continue;
         }
 
-        instance.push_back(line);       
+        instance.push_back(line); 
+          
         
     }
+
+    cout << instances.size() << endl;
     
 
-    auto now = chrono::system_clock::now();
-
-        auto duration = now.time_since_epoch();
-
-        auto milliseconds1
-            = chrono::duration_cast<chrono::nanoseconds>(
-                  duration)
-                  .count();
+    
 
     int iter = 0;
     auto rng = std::default_random_engine {};
-    rng.seed(46);
+    rng.seed(50);
 
     
     for(auto &inst : instances){
@@ -2804,11 +3022,7 @@ void test_time_ordering(){
 
 
         
-        if(iter<=3){//536//7/100/77
-            iter++;
-            continue;
-
-        }
+       
         
         /*for(auto i : instance){
             cout << "\"" <<  i << "\"," <<  endl;
@@ -2872,19 +3086,34 @@ void test_time_ordering(){
         
 
 
+       // std::shuffle(std::begin(graphs), std::end(graphs), rng);
+        if(iter<=-1){//536//7/100/77
+            iter++;
+            continue;
+
+        }
+
+        for(auto j : instance){
+            cout << "\"" << j << "\"," <<  endl;
+        }
 
 
+        auto now2 = chrono::system_clock::now();
 
+            auto duration2 = now2.time_since_epoch();
 
-
+            auto milliseconds3
+                = chrono::duration_cast<chrono::nanoseconds>(
+                      duration2)
+                      .count();
 
 
         
         
         
-        auto graph_slice_1 = std::vector<LineGraph>(graphs.begin(), graphs.begin()+3);
+        auto graph_slice_1 = std::vector<LineGraph>(graphs.begin(), graphs.begin()+5);
         
-        auto graph_slice_2 = std::vector<LineGraph>(graphs.begin()+3, graphs.end());
+        auto graph_slice_2 = std::vector<LineGraph>(graphs.begin()+5, graphs.end());
         
         
         
@@ -2899,15 +3128,36 @@ void test_time_ordering(){
 
         auto min = ordering.third;
 
-        if(min>1000){
+        if(min>1000000){
             iter ++;
             continue;
         }
 
         auto good_indices = indices;//{indices[0], indices[1], indices[2]};
         
+        
+        
+         now2 = chrono::system_clock::now();
+       // Convert the current time to time since epoch
+        auto duration3 = now2.time_since_epoch();
+
+        auto milliseconds4
+            = chrono::duration_cast<chrono::nanoseconds>(
+                  duration3)
+                  .count();
+        
+        double time_to_order = (double(milliseconds4)- double(milliseconds3))/1000000000;
+        
+        
+        ordering_time = ordering_time + time_to_order;
+
+        
         //graphs = {graphs[0], graphs[1], graphs[2]};
-       // std::shuffle(std::begin(graphs), std::end(graphs), rng);
+       //std::shuffle(std::begin(graphs), std::end(graphs), rng);
+
+
+
+        
 
 
         int num_nodes = 0;
@@ -2919,11 +3169,34 @@ void test_time_ordering(){
         double aver_size = num_nodes/graphs.size();
 
        
-        special_product = false;
+        special_product = true;
+
+        auto now = chrono::system_clock::now();
+
+        auto duration = now.time_since_epoch();
+
+        auto milliseconds1
+            = chrono::duration_cast<chrono::nanoseconds>(
+                  duration)
+                  .count();
 
 
         
         maximum_common_subgraph(graphs, true);
+
+
+         now = chrono::system_clock::now();
+       // Convert the current time to time since epoch
+        auto duration5 = now.time_since_epoch();
+
+        auto milliseconds2
+            = chrono::duration_cast<chrono::nanoseconds>(
+                  duration5)
+                  .count();
+
+        auto milliseconds = (double(milliseconds2)- double(milliseconds1))/1000000000;
+
+       
 
         
 
@@ -2936,11 +3209,15 @@ void test_time_ordering(){
         cout << "AVERAGE #EDGES: " << aver_size << endl;
         cout << "MCS SIZE: " << num_edges(maximum_graph.g) << endl;
         cout << "SOLUTIONS: " << endl;
+        cout << "ORDERING TIME: " << time_to_order << endl;
+        cout << "TIME: " << milliseconds << endl;
         for(auto mcs_graph : all_maximum_graphs){
             cout << to_mol(mcs_graph) << endl;
         }
         cout << "#########################################" << endl;
         cout << endl << endl;
+
+        results << milliseconds + time_to_order << endl;
 
        
 
@@ -3012,18 +3289,10 @@ void test_time_ordering(){
 
     }
 
-    now = chrono::system_clock::now();
-       // Convert the current time to time since epoch
-        auto duration2 = now.time_since_epoch();
+    cout << ordering_time << endl;
 
-        auto milliseconds2
-            = chrono::duration_cast<chrono::nanoseconds>(
-                  duration2)
-                  .count();
-
-        auto milliseconds = (double(milliseconds2)- double(milliseconds1))/1000000000;
-
-       cout << "TIME: " << milliseconds << endl;
+   
+       
 
 
 
@@ -3301,17 +3570,84 @@ void ordering_experiment(){
 }
 
 
+void solve_instances(std::string input_file, std::string output_file){
+
+    std::vector<std::vector<std::string>> instances;
+
+     
+
+     ofstream results(output_file);
+
+     
+
+    std::ifstream infile(input_file);
+    std::string line;
+    while (std::getline(infile, line))
+    {
+
+        std::istringstream iss(line);
+
+        std::vector<std::string> instance;
+
+        for(auto s : split(line, ",")){
+            if(s.size()>1){
+                instance.push_back(s);
+            }    
+        }
+        instances.push_back(instance);
+
+         
+          
+        
+    }
+
+
+    for(auto instance : instances){
+
+
+        std::vector<LineGraph> graphs;
+        std::vector<MolecularGraph> mgraphs;
+
+        
+        for(auto smiles : instance){           
+           
+
+            auto g = smiles_to_graph(smiles);
+            
+             
+            auto lgg =  molecular_graph_to_line_graph(g);
+
+            graphs.push_back(lgg);
+            
+
+        }
+
+        auto ordering = find_ordering(graphs); 
+        
+        graphs = ordering.first;
+
+        special_product = true;
+
+        maximum_common_subgraph(graphs, true);
+
+        for(auto mcs_graph : all_maximum_graphs){
+            results << to_mol(mcs_graph) << ",";
+        }
+        results << endl;
+
+
+
+
+
+
+    }
+
+}
+
+
 int main() {
-
-    cout << "HEJ";
-   // ordering_experiment();
-    //count_cliques();
-    //generate_clique_finding_data();
-    test_time_ordering();
-    //filter_smiles();
-    //test_cliques_passed();
-    //find_all_cliques_per_file();
-
+    
+    solve_instances("ordered_instances.csv", "results.csv");
     
     
     return 0;
