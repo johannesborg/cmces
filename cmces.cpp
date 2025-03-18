@@ -3570,7 +3570,7 @@ void ordering_experiment(){
 }
 
 
-void solve_instances(std::string input_file, std::string output_file){
+void solve_instances(std::string input_file, std::string output_file, bool minmax_order, bool prune){
 
     std::vector<std::vector<std::string>> instances;
 
@@ -3622,11 +3622,15 @@ void solve_instances(std::string input_file, std::string output_file){
 
         }
 
-        auto ordering = find_ordering(graphs); 
+        if(minmax_order){
+            auto ordering = find_ordering(graphs); 
         
-        graphs = ordering.first;
+            graphs = ordering.first;
+        }
 
-        special_product = true;
+        
+
+        special_product = prune;
 
         maximum_common_subgraph(graphs, true);
 
@@ -3647,7 +3651,7 @@ void solve_instances(std::string input_file, std::string output_file){
 
 int main() {
     
-    solve_instances("ordered_instances.csv", "results.csv");
+    solve_instances("ordered_instances.csv", "results.csv", false, true);
     
     
     return 0;
