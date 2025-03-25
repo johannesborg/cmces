@@ -679,6 +679,12 @@ std::vector<ModularProductGraph> induced_subgraph(const std::set<Vertex> &clique
 
     std::vector<std::set<Vertex>> seen_triangles;
 
+    if(clique.size()!=3){
+        return {subgraph};
+    }
+    
+ 
+
     for (const auto& e : boost::make_iterator_range(boost::edges(subgraph.g))){
         if(subgraph.bonds[std::pair<Vertex, Vertex>(vertex_map[e.m_target],vertex_map[e.m_source])]=="NONE"){
             continue;
@@ -2015,9 +2021,9 @@ MolecularGraph smiles_to_graph(std::string smiles){
 
     
 
-     
-    
-    FOR_ATOMS_OF_MOL(a, mol){
+     for (OpenBabel::OBAtomIterator atom = mol.BeginAtoms(); atom != mol.EndAtoms(); ++atom){
+
+        auto a = *atom;
 
         auto id =  a->GetIdx();
         
@@ -2029,7 +2035,9 @@ MolecularGraph smiles_to_graph(std::string smiles){
     }
 
 
-    FOR_BONDS_OF_MOL(b, mol){
+    for (OpenBabel::OBBondIterator bond = mol.BeginBonds(); bond != mol.EndBonds(); ++bond){
+
+        auto b = *bond;
 
         auto src =  vertex_map[b->GetBeginAtomIdx()];
         auto tar = vertex_map[b->GetEndAtomIdx()];
@@ -2916,7 +2924,7 @@ void test_time_ordering(){
 
      ofstream MyFile("mcs_results1.txt");
 
-     ofstream results("times_minmax_pruned.txt");
+     ofstream results("times_vh_pruned.txt");
 
      //results << "solution_time,ordering_time" << endl;  
 
@@ -3108,7 +3116,7 @@ void test_time_ordering(){
                       .count();
 
 
-        
+        /*
         
         
         auto graph_slice_1 = std::vector<LineGraph>(graphs.begin(), graphs.begin()+5);
@@ -3134,7 +3142,7 @@ void test_time_ordering(){
         }
 
         auto good_indices = indices;//{indices[0], indices[1], indices[2]};
-        
+        */
         
         
          now2 = chrono::system_clock::now();
@@ -3570,7 +3578,7 @@ void ordering_experiment(){
 }
 
 
-void solve_instances(std::string input_file, std::string output_file, bool minmax_order, bool prune){
+void solve_instances(std::string input_file, std::string output_file, bool prune, bool minmax_order){
 
     std::vector<std::vector<std::string>> instances;
 
@@ -3601,6 +3609,7 @@ void solve_instances(std::string input_file, std::string output_file, bool minma
         
     }
 
+    int iter = 1;
 
     for(auto instance : instances){
 
@@ -3639,6 +3648,10 @@ void solve_instances(std::string input_file, std::string output_file, bool minma
         }
         results << endl;
 
+        cout << "Instance: " << iter << "/" << instances.size() << " solved." << endl;
+
+        iter++;
+
 
 
 
@@ -3649,9 +3662,43 @@ void solve_instances(std::string input_file, std::string output_file, bool minma
 }
 
 
-int main() {
+int main(int argc, char* argv[]) {
+
+    std::string input = argv[1];
+    std::string output = argv[2];
+    std::string product_type = argv[3];
+    std::string ordering = argv[4];
     
-    solve_instances("ordered_instances.csv", "results.csv", false, true);
+    bool use_special_product = false;
+    bool order = false;
+
+
+
+    if(product_type=="prune"){
+        use_special_product = true;
+    }
+    else if(product_type=="no-prune"){
+        use_special_product = false;
+    }
+    else{
+        cout << "Command line argument 3 should be \"prune\" or \"no-prune\"" << endl;
+        return 0;
+    }
+
+    if(ordering=="order"){
+        order = true;
+    }
+    else if(ordering=="no-order"){
+        order = false;
+    }
+    else{
+        cout << "Command line argument 4 should be \"order\" or \"no-order\"" << endl;
+        return 0;
+    }
+
+    
+    
+    solve_instances(input, output, use_special_product, order);
     
     
     return 0;

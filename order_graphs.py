@@ -296,7 +296,7 @@ def create_csv_file():
 
 	for inst in instances:
 
-		order = range(len(inst))#greedy_prefix_ordering(inst, kernel)
+		order = greedy_prefix_ordering(inst, kernel)
 
 		smiles_strings = []
 
@@ -474,23 +474,26 @@ def box_plots():
 	    cap.set_visible(False)
 
 	# Set y-axis to logarithmic scale
-	plt.ylabel("Time in seconds", fontsize=36, labelpad=40)
+	plt.ylabel("Time in seconds", fontsize=50, labelpad=40)
 
 	# Customize y-axis tick labels to display floats with a specific format
 	#ax.yaxis.set_major_formatter(ScalarFormatter())
 	#ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: f'{y:.2f}'))  # Format as floats with 2 decimal places
 
 	# Set title and labels
-	ax.set_title("Runtime analysis", fontsize=50)
+	ax.set_title("Runtime analysis", fontsize=60)
 	
-	plt.xlabel("Heuristics", fontsize=36, labelpad=40)
-	ax.set_xticklabels(["VH/normal", "VH/pruned", "WL/normal", "WL/pruned", "NSPD/normal", "NSPD/pruned", "minmax/normal", "minmax/pruned"], fontsize=24)
+	plt.xlabel("Heuristics", fontsize=50, labelpad=40)
+	ax.set_xticklabels(["VH/not pruned", "VH/pruned", "WL/not pruned", "WL/pruned", "NSPD/not pruned", "NSPD/pruned", "minmax/not pruned", "minmax/pruned"], fontsize=24)
 
 	# Add gridlines for clarity
 	ax.grid(True, axis='y', linestyle='--', alpha=0.7)
 
-	ax.tick_params(axis='y', labelsize=24)
-	ax.tick_params(axis='x', labelsize=24)
+	ax.tick_params(axis='y', labelsize=40)
+	ax.tick_params(axis='x', labelsize=40)
+	plt.rcParams["figure.figsize"] = (20,3)
+
+	plt.xticks(rotation=15)
 
 	# Show the plot
 	plt.show()
@@ -523,15 +526,37 @@ def box_plots():
 	# Show the plot
 	fig.show()
 	"""
-	
+
+
+import sys
 if __name__ == '__main__':
 	kernel1 = grakel.VertexHistogram(n_jobs=None, normalize=True, verbose=False, sparse=False)
 	kernel5 = grakel.NeighborhoodSubgraphPairwiseDistance(n_jobs=None, normalize=False, verbose=False, r=2, d=3)
 	kernel8 = grakel.WeisfeilerLehmanOptimalAssignment(n_jobs=None, verbose=False, normalize=True, n_iter=4, sparse=False)
 
-	#create_instances(kernel5)
+	
+
+	#create_instances(kernel1)
 	#create_sized_instances(kernel5)
 	#visualize_runtime()
 	#box_plots()
 	#create_csv_file()	
-	order_csv_file(kernel1, "instances_before_ordering.csv", "ordered_instances.csv")
+	#order_csv_file(kernel1, "instances_before_ordering.csv", "ordered_instances.csv")
+
+	args = sys.argv
+
+	input = args[1]
+	output = args[2]
+	kernel_arg = int(args[3])
+
+	if kernel_arg==1:
+		kernel = grakel.VertexHistogram(n_jobs=None, normalize=True, verbose=False, sparse=False)
+	elif kernel_arg==2:
+		kernel = grakel.NeighborhoodSubgraphPairwiseDistance(n_jobs=None, normalize=False, verbose=False, r=2, d=3)
+	elif kernel_arg==3:
+		kernel = grakel.WeisfeilerLehmanOptimalAssignment(n_jobs=None, verbose=False, normalize=True, n_iter=4, sparse=False)
+	else:
+		print("Argument 3 specifying kernel type must be 1,2 or 3.")
+
+	order_csv_file(kernel1, input, output)
+
