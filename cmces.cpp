@@ -1210,7 +1210,9 @@ std::vector<std::pair<Vertex, Vertex>> reachable_pairs(Vertex u1, LineGraph &g1,
         iter++;
         
 
-
+        if(iter>10000){
+            return all_pairs;
+        }
 
     
         quad = stack.back();
@@ -2924,7 +2926,7 @@ void test_time_ordering(){
 
      ofstream MyFile("mcs_results1.txt");
 
-     ofstream results("times_vh_pruned.txt");
+     ofstream results("lort");
 
      //results << "solution_time,ordering_time" << endl;  
 
@@ -3116,7 +3118,7 @@ void test_time_ordering(){
                       .count();
 
 
-        /*
+        
         
         
         auto graph_slice_1 = std::vector<LineGraph>(graphs.begin(), graphs.begin()+5);
@@ -3142,7 +3144,7 @@ void test_time_ordering(){
         }
 
         auto good_indices = indices;//{indices[0], indices[1], indices[2]};
-        */
+        
         
         
          now2 = chrono::system_clock::now();
@@ -3177,7 +3179,7 @@ void test_time_ordering(){
         double aver_size = num_nodes/graphs.size();
 
        
-        special_product = true;
+        special_product = false;
 
         auto now = chrono::system_clock::now();
 
@@ -3663,6 +3665,8 @@ void solve_instances(std::string input_file, std::string output_file, bool prune
 
 
 int main(int argc, char* argv[]) {
+
+    
 
     std::string input = argv[1];
     std::string output = argv[2];
