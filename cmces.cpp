@@ -3721,9 +3721,7 @@ void ordering_experiment(){
 
 int main(int argc, char* argv[]) {
 
-    test_time_ordering();
-    return 0;
-
+    
     std::string input = argv[1];
     std::string output = argv[2];
     std::string product_type = argv[3];
