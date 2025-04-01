@@ -30,6 +30,7 @@
 #include <openbabel/bond.h>
 #include <openbabel/math/vector3.h>
 #include <openbabel/atom.h>
+#include <unordered_map>
 
 
 using namespace std;
@@ -71,6 +72,9 @@ int edges_added = 0;
 int edges_removed = 0; 
 
 
+
+
+//Class for representing simple, labeled graphs
 struct MolecularGraph{
 
     Graph g = Graph();
@@ -120,7 +124,7 @@ struct PathGraph{
 };
 
 
-
+//Class for representing the line graph of MolecularGraph
 struct LineGraph{
 
     Graph g = Graph();
@@ -192,6 +196,8 @@ struct LineGraph{
     }
 };
 
+
+//Class for representing the modular product of line graphs
 struct ModularProductGraph{
 
     Graph g = Graph();
@@ -238,7 +244,7 @@ struct Collector {
 
 
 
-
+//Class used for "yielding" cliques in the clique finding function, similar to the keyword yield in python
 class CliqueGenerator {
 public:
     struct promise_type {
@@ -287,6 +293,8 @@ private:
 CliqueGenerator bron_kerbosch_driver(ModularProductGraph &graph);
 
 
+
+//Class for yielding maximal common subgraphs, similar to the yield keyword in python
 class MCSGenerator {
 public:
     struct promise_type {
@@ -338,7 +346,7 @@ private:
 
 
 
-
+//Constructs the modular product of two line graphs, WITHOUT type-0 edges, i.e. this function constructs the direct product of two line graphs
 struct ModularProductGraph modular_graph_product(struct LineGraph& g1, struct LineGraph& g2){
 
     struct ModularProductGraph modular_product;
@@ -426,7 +434,7 @@ struct ModularProductGraph modular_graph_product(struct LineGraph& g1, struct Li
 
 
 
-
+//Takes a simple labeled graph(representing a molecule) and returns its line graph
 LineGraph molecular_graph_to_line_graph(MolecularGraph &graph){
 
     LineGraph line_graph;
@@ -502,6 +510,10 @@ LineGraph molecular_graph_to_line_graph(MolecularGraph &graph){
 
 
 }
+
+
+//helper functions for checking inclusion in various ways:
+/*****************************************/
 bool is_in(std::set<std::pair<std::pair<Vertex, Vertex>, std::pair<Vertex, Vertex>>> list, std::pair<std::pair<Vertex, Vertex>, std::pair<Vertex, Vertex>> v){
     for(const auto& u: list){
         if(u==v){
@@ -577,9 +589,13 @@ bool is_in(std::set<Vertex> triangle, std::vector<std::set<Vertex>> seen_triangl
 
     return false;
 }
+//helper functions for checking inclusion in various ways:
+/**************************************************/
 
 
 
+
+//Returns the cartesian product of an arbitrary number of sets
 std::vector<std::set<Vertex>> cartesian(std::vector<std::vector<Vertex>>& sets) {
     std::vector<std::set<Vertex>> temp(1, std::set<Vertex>());
     for (int i = 0; i < sets.size(); i++) {
@@ -600,6 +616,8 @@ std::vector<std::set<Vertex>> cartesian(std::vector<std::vector<Vertex>>& sets) 
 
 
 
+
+//Takes a modular product graph and a list of vertices, and deletes the vertices from the graph
 ModularProductGraph delete_set_of_vertices(ModularProductGraph &graph, std::set<Vertex> &delete_vertices){
 
 
@@ -647,6 +665,9 @@ ModularProductGraph delete_set_of_vertices(ModularProductGraph &graph, std::set<
 
 }
 
+
+//Returns an induced subgraph of a modular product graph containing the vertices in clique. Also checks if there is a bad triangle
+//in the given clique, in which case it returns three representative modular product graphs, as outlined in the paper
 std::vector<ModularProductGraph> induced_subgraph(const std::set<Vertex> &clique, struct ModularProductGraph& graph){
 
     struct ModularProductGraph subgraph;
@@ -786,6 +807,8 @@ std::vector<ModularProductGraph> induced_subgraph(const std::set<Vertex> &clique
 }
 
 
+
+//Constructs the original simple, labeled graph given a line graph
 MolecularGraph get_original_graph_from_linegraph(LineGraph& g1, LineGraph& g2, std::vector<std::pair<Vertex,Vertex>> node_pairs){
 
 
@@ -849,7 +872,7 @@ MolecularGraph get_original_graph_from_linegraph(LineGraph& g1, LineGraph& g2, s
 
 }
 
-//std::vector<struct MolecularGraph>
+//possible implementation of alternative maximal common subgraph algorithm. DOES NOT WORK YET
 MCSGenerator alt_maximal_common_subgraphs(struct LineGraph &g1, struct LineGraph &g2){
 
     std::vector<std::vector<std::pair<Vertex,Vertex>>> stack;
@@ -974,7 +997,9 @@ MCSGenerator alt_maximal_common_subgraphs(struct LineGraph &g1, struct LineGraph
 
 
 
-
+//Returns a generator which yields all maximal common subgraphs between g1 and g2
+//If global var special_product is true it removes certain type-0 edges from the modular product of g1 and g2
+//and otherwise it doesn't 
 MCSGenerator maximal_common_subgraphs(struct LineGraph &g1, struct LineGraph &g2){
 
     std::vector<Vertex> clique_set_prime;
@@ -1145,6 +1170,8 @@ MCSGenerator maximal_common_subgraphs(struct LineGraph &g1, struct LineGraph &g2
 }
 
 
+
+//Returns the cartesian product of two sets
 std::vector<std::pair<Vertex, Vertex>> cartesian_product( Graph& g1, Graph& g2){
 
     std::vector<std::pair<Vertex, Vertex>> product;
@@ -1173,6 +1200,11 @@ struct StackHelper{
 };
 
 
+
+//Performs the isomorphic path finding heuristic outlined in the paper. 
+//Performs an exhaustive simultaneous breadth first search in g1 and g2 starting in u1 and v1
+//extending isomorphic paths in each step. Returns all pairs reachable from u1 and v1.
+//If number of steps exceeds 10000 it terminates and simply returns all pairs, thereby pruning no type-0 edges.
 std::vector<std::pair<Vertex, Vertex>> reachable_pairs(Vertex u1, LineGraph &g1, Vertex v1, LineGraph &g2, std::vector<Vertex> good_vertices1, std::vector<Vertex> good_vertices2, int max_num_edges){
 
 
@@ -1315,7 +1347,7 @@ std::vector<std::pair<Vertex, Vertex>> reachable_pairs(Vertex u1, LineGraph &g1,
 
 
 
-
+//Finds the type-A connected components of a modular product graph, without the removal of certain type-0 edges
 std::vector<struct ModularProductGraph> find_blue_connected_components(struct ModularProductGraph& graph){
 
     std::vector<std::pair<Vertex, Vertex>> vertex_pairs;
@@ -1509,7 +1541,7 @@ std::vector<struct ModularProductGraph> find_blue_connected_components(struct Mo
 } 
 
 
-
+//Finds the type-A connected components of a modular product graph, WITH the removal of certain type-0 edges
 std::vector<struct ModularProductGraph> alternate_find_blue_connected_components(struct ModularProductGraph& graph){
 
 
@@ -1747,6 +1779,8 @@ struct Triple {
 };
 
 
+
+//Used for always recursing on largest current clique
 bool compareBySetSize(const Triple<std::set<Vertex>, std::set<Vertex>, std::set<Vertex>>& a, const Triple<std::set<Vertex>, std::set<Vertex>, std::set<Vertex>>& b) {
     // Compare based on the size of the first set in each vector
     //return a.third.size() >b.third.size();
@@ -1757,6 +1791,7 @@ bool compareBySetSize(const Triple<std::set<Vertex>, std::set<Vertex>, std::set<
 }
 
 
+//Used for always yielding current largest clique
 bool compareBySetSize2(const std::set<Vertex>& a, const std::set<Vertex>& b) {
     // Compare based on the size of the first set in each vector
     
@@ -1774,7 +1809,7 @@ bool compareBySetSize2(const std::set<Vertex>& a, const std::set<Vertex>& b) {
 
 
 
-
+//Finds all type-A connected cliques in a modular product graph
 CliqueGenerator bron_kerbosch_non_recursive(std::set<Vertex> init_R, std::set<Vertex> init_P, std::set<Vertex> init_X, ModularProductGraph &graph, std::vector<std::set<Vertex>> &cliques){
 
    
@@ -1969,7 +2004,7 @@ CliqueGenerator bron_kerbosch_non_recursive(std::set<Vertex> init_R, std::set<Ve
 
 
 
-
+//Driver function that returns a generator that yields all maximal typer-A connected cliques in a modular product graph
 CliqueGenerator bron_kerbosch_driver(ModularProductGraph &graph){
 
 
@@ -1995,7 +2030,7 @@ CliqueGenerator bron_kerbosch_driver(ModularProductGraph &graph){
 
 
 
-
+//Parses a smiles string and constructs a simple, labeled graph
 MolecularGraph smiles_to_graph(std::string smiles){
 
 
@@ -2069,6 +2104,7 @@ MolecularGraph smiles_to_graph(std::string smiles){
 }
 
 
+//Converts a modular product graph of line graphs to its original simple, labeled graph
 MolecularGraph get_original_graph_from_modular_linegraph(struct ModularProductGraph& graph){
 
 
@@ -2133,7 +2169,8 @@ MolecularGraph get_original_graph_from_modular_linegraph(struct ModularProductGr
 }
 
 
-
+//Finds the maximum common induced subgraph of a list of line graphs
+//Stores results in all_maximum_graphs
 void maximum_common_subgraph(std::vector<struct LineGraph> &graphs, bool first){
     
     
@@ -2234,7 +2271,8 @@ void maximum_common_subgraph(std::vector<struct LineGraph> &graphs, bool first){
 
 
 
-
+//Computes the minmax similarities between a list of line graphs.
+//Name of function doesn't make sense
 std::map<std::pair<int,int>, int> strong_product_kernel(std::vector<LineGraph> &graphs){
 
     std::map<std::pair<int,int>, int> kernel;
@@ -2300,6 +2338,8 @@ std::map<std::pair<int,int>, int> strong_product_kernel(std::vector<LineGraph> &
 }
 
 
+
+//Takes a list of line graphs and orders them greedily according to minmax similarity
 Triple<std::vector<LineGraph>, std::vector<int>, int> find_ordering(std::vector<LineGraph> &graphs){
 
     std::vector<LineGraph> ordering;
@@ -2376,7 +2416,7 @@ Triple<std::vector<LineGraph>, std::vector<int>, int> find_ordering(std::vector<
 }
 
 
-// for string delimiter
+// Splits a string according to delimiter
 std::vector<std::string> split(std::string s, std::string delimiter) {
     size_t pos_start = 0, pos_end, delim_len = delimiter.length();
     std::string token;
@@ -2391,6 +2431,157 @@ std::vector<std::string> split(std::string s, std::string delimiter) {
     res.push_back (s.substr (pos_start));
     return res;
 }
+
+
+
+
+
+//Takes a molecular graph and returns a corresponding smiles string
+std::string to_mol(MolecularGraph &g){
+
+    OpenBabel::OBMol mol;
+
+    std::map<Vertex, int> atom_map;
+
+    int index = 1;
+
+    for (auto vertex : boost::make_iterator_range(boost::vertices(g.g))){
+        std::string type = g.atoms[vertex];
+        int charge = type.back() - '0';
+        type.pop_back();
+        OpenBabel::OBAtom* c1 = mol.NewAtom();
+        c1->SetAtomicNum(std::stoi(type)); 
+        if(charge!=0){
+            c1->SetFormalCharge(charge);
+        }
+        
+        atom_map[vertex] = index;
+        index ++;
+
+    }
+    for (auto edge : boost::make_iterator_range(boost::edges(g.g))){
+
+        std::string bond_type = g.bonds[(std::pair(source(edge, g.g), target(edge, g.g)))];
+
+
+
+        int int_bond = std::stoi(bond_type);
+
+        mol.AddBond(atom_map[source(edge, g.g)], atom_map[target(edge, g.g)], int_bond);
+
+
+
+
+    }
+
+    mol.ConnectTheDots();
+    //mol.PerceiveBondOrders();
+
+    // Output as SMILES
+    OpenBabel::OBConversion conv;
+    conv.SetOutFormat("smi");
+    std::string smiles = conv.WriteString(&mol);
+    //std::cout << "SMILES: " << smiles << std::endl;
+    smiles.pop_back();
+    smiles.pop_back();
+
+    return smiles;
+
+
+
+
+}
+
+
+//Takes input csv file and solves all instances, outputting results in output csv file
+void solve_instances(std::string input_file, std::string output_file, bool prune, bool minmax_order){
+
+    std::vector<std::vector<std::string>> instances;
+
+     
+
+     ofstream results(output_file);
+
+     
+
+    std::ifstream infile(input_file);
+    std::string line;
+    while (std::getline(infile, line))
+    {
+
+        std::istringstream iss(line);
+
+        std::vector<std::string> instance;
+
+        for(auto s : split(line, ",")){
+            if(s.size()>1){
+                instance.push_back(s);
+            }    
+        }
+        instances.push_back(instance);
+
+         
+          
+        
+    }
+
+    int iter = 1;
+
+    for(auto instance : instances){
+
+
+        std::vector<LineGraph> graphs;
+        std::vector<MolecularGraph> mgraphs;
+
+        
+        for(auto smiles : instance){           
+           
+
+            auto g = smiles_to_graph(smiles);
+            
+             
+            auto lgg =  molecular_graph_to_line_graph(g);
+
+            graphs.push_back(lgg);
+            
+
+        }
+
+        if(minmax_order){
+            auto ordering = find_ordering(graphs); 
+        
+            graphs = ordering.first;
+        }
+
+        
+
+        special_product = prune;
+
+        maximum_common_subgraph(graphs, true);
+
+        for(auto mcs_graph : all_maximum_graphs){
+            results << to_mol(mcs_graph) << ",";
+        }
+        results << endl;
+
+        cout << "Instance: " << iter << "/" << instances.size() << " solved." << endl;
+
+        iter++;
+
+
+
+
+
+
+    }
+
+}
+
+
+
+/**********************functions for experiments*************************************************************************************/
+
+
 
 
 void find_all_cliques_per_file(){
@@ -2863,61 +3054,6 @@ void count_cliques(){
 }
 
 
-std::string to_mol(MolecularGraph &g){
-
-    OpenBabel::OBMol mol;
-
-    std::map<Vertex, int> atom_map;
-
-    int index = 1;
-
-    for (auto vertex : boost::make_iterator_range(boost::vertices(g.g))){
-        std::string type = g.atoms[vertex];
-        int charge = type.back() - '0';
-        type.pop_back();
-        OpenBabel::OBAtom* c1 = mol.NewAtom();
-        c1->SetAtomicNum(std::stoi(type)); 
-        if(charge!=0){
-            c1->SetFormalCharge(charge);
-        }
-        
-        atom_map[vertex] = index;
-        index ++;
-
-    }
-    for (auto edge : boost::make_iterator_range(boost::edges(g.g))){
-
-        std::string bond_type = g.bonds[(std::pair(source(edge, g.g), target(edge, g.g)))];
-
-
-
-        int int_bond = std::stoi(bond_type);
-
-        mol.AddBond(atom_map[source(edge, g.g)], atom_map[target(edge, g.g)], int_bond);
-
-
-
-
-    }
-
-    mol.ConnectTheDots();
-    //mol.PerceiveBondOrders();
-
-    // Output as SMILES
-    OpenBabel::OBConversion conv;
-    conv.SetOutFormat("smi");
-    std::string smiles = conv.WriteString(&mol);
-    //std::cout << "SMILES: " << smiles << std::endl;
-    smiles.pop_back();
-    smiles.pop_back();
-
-    return smiles;
-
-
-
-
-}
-
 
 
 void test_time_ordering(){
@@ -3120,7 +3256,7 @@ void test_time_ordering(){
 
         
         
-        
+        /*
         auto graph_slice_1 = std::vector<LineGraph>(graphs.begin(), graphs.begin()+5);
         
         auto graph_slice_2 = std::vector<LineGraph>(graphs.begin()+5, graphs.end());
@@ -3144,7 +3280,7 @@ void test_time_ordering(){
         }
 
         auto good_indices = indices;//{indices[0], indices[1], indices[2]};
-        
+        */
         
         
          now2 = chrono::system_clock::now();
@@ -3580,93 +3716,13 @@ void ordering_experiment(){
 }
 
 
-void solve_instances(std::string input_file, std::string output_file, bool prune, bool minmax_order){
-
-    std::vector<std::vector<std::string>> instances;
-
-     
-
-     ofstream results(output_file);
-
-     
-
-    std::ifstream infile(input_file);
-    std::string line;
-    while (std::getline(infile, line))
-    {
-
-        std::istringstream iss(line);
-
-        std::vector<std::string> instance;
-
-        for(auto s : split(line, ",")){
-            if(s.size()>1){
-                instance.push_back(s);
-            }    
-        }
-        instances.push_back(instance);
-
-         
-          
-        
-    }
-
-    int iter = 1;
-
-    for(auto instance : instances){
-
-
-        std::vector<LineGraph> graphs;
-        std::vector<MolecularGraph> mgraphs;
-
-        
-        for(auto smiles : instance){           
-           
-
-            auto g = smiles_to_graph(smiles);
-            
-             
-            auto lgg =  molecular_graph_to_line_graph(g);
-
-            graphs.push_back(lgg);
-            
-
-        }
-
-        if(minmax_order){
-            auto ordering = find_ordering(graphs); 
-        
-            graphs = ordering.first;
-        }
-
-        
-
-        special_product = prune;
-
-        maximum_common_subgraph(graphs, true);
-
-        for(auto mcs_graph : all_maximum_graphs){
-            results << to_mol(mcs_graph) << ",";
-        }
-        results << endl;
-
-        cout << "Instance: " << iter << "/" << instances.size() << " solved." << endl;
-
-        iter++;
-
-
-
-
-
-
-    }
-
-}
+/*******************************functions for experiments**********************************************************************/
 
 
 int main(int argc, char* argv[]) {
 
-    
+    test_time_ordering();
+    return 0;
 
     std::string input = argv[1];
     std::string output = argv[2];
